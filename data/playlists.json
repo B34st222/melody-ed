@@ -1,0 +1,31 @@
+{
+  "playlists": [
+    {
+      "id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+      "name": "Math Fun Songs",
+      "description": "Songs that make learning math fun!",
+      "cover_url": "https://images.unsplash.com/photo-1509228468518-180dd4864904?w=800",
+      "category": "Mathematics",
+      "created_by": "Ms. Johnson",
+      "created_at": "2025-02-20T14:09:08.000Z"
+    },
+    {
+      "id": "d290f1ee-6c54-4b01-90e6-d701748f0852",
+      "name": "Science Adventures",
+      "description": "Musical journey through scientific concepts",
+      "cover_url": "https://images.unsplash.com/photo-1507413245164-6160d8298b31?w=800",
+      "category": "Science",
+      "created_by": "Mr. Smith",
+      "created_at": "2025-02-20T14:09:08.000Z"
+    },
+    {
+      "id": "d290f1ee-6c54-4b01-90e6-d701748f0853",
+      "name": "Reading Rhythms",
+      "description": "Songs that help with reading and phonics",
+      "cover_url": "https://images.unsplash.com/photo-1524578271613-d550eacf6090?w=800",
+      "category": "Language Arts",
+      "created_by": "Mrs. Davis",
+      "created_at": "2025-02-20T14:09:08.000Z"
+    }
+  ]
+}
