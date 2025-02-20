@@ -7,7 +7,7 @@ export const useSupabase = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
 
   const fetchPlaylists = async () => {
     try {
@@ -15,32 +15,61 @@ export const useSupabase = () => {
       setError(null);
       console.log('Fetching playlists...');
 
-      // Fetch playlists
+      // Get user's hidden items
+      const { data: hiddenItems, error: hiddenError } = await supabase
+        .from('hidden_items')
+        .select('item_id, item_type')
+        .eq('user_id', user?.id);
+
+      if (hiddenError) {
+        console.error('Error fetching hidden items:', hiddenError);
+        throw hiddenError;
+      }
+
+      const hiddenPlaylists = new Set(
+        hiddenItems
+          ?.filter(item => item.item_type === 'playlist')
+          .map(item => item.item_id)
+      );
+
+      const hiddenSongs = new Set(
+        hiddenItems
+          ?.filter(item => item.item_type === 'song')
+          .map(item => item.item_id)
+      );
+
+      // For guest users, only fetch system playlists
+      // For regular users, fetch their playlists and system playlists
       const { data: playlistsData, error: playlistsError } = await supabase
         .from('playlists')
         .select('*')
-        .order('created_at', { ascending: false });
+        .or(`user_id.eq.00000000-0000-0000-0000-000000000000${!isGuest ? `,user_id.eq.${user?.id}` : ''}`);
 
       if (playlistsError) {
         console.error('Error fetching playlists:', playlistsError);
         throw playlistsError;
       }
 
-      console.log('Fetched playlists:', playlistsData);
+      // Filter out hidden playlists
+      const visiblePlaylists = playlistsData.filter(
+        playlist => !hiddenPlaylists.has(playlist.id)
+      );
 
-      // Fetch user's songs
+      // Fetch songs with the same logic
       const { data: songsData, error: songsError } = await supabase
         .from('songs')
         .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
+        .or(`user_id.eq.00000000-0000-0000-0000-000000000000${!isGuest ? `,user_id.eq.${user?.id}` : ''}`);
 
       if (songsError) {
         console.error('Error fetching songs:', songsError);
         throw songsError;
       }
 
-      console.log('Fetched songs:', songsData);
+      // Filter out hidden songs
+      const visibleSongs = songsData.filter(
+        song => !hiddenSongs.has(song.id)
+      );
 
       const { data: playlistSongsData, error: playlistSongsError } = await supabase
         .from('playlist_songs')
@@ -52,14 +81,12 @@ export const useSupabase = () => {
         throw playlistSongsError;
       }
 
-      console.log('Fetched playlist_songs:', playlistSongsData);
-
       // Map songs to their playlists
-      const playlistsWithSongs = playlistsData.map((playlist: Playlist) => {
+      const playlistsWithSongs = visiblePlaylists.map((playlist: Playlist) => {
         const playlistSongs = playlistSongsData
           .filter((ps: PlaylistSong) => ps.playlist_id === playlist.id)
           .map((ps: PlaylistSong) => {
-            const song = songsData.find((s: Song) => s.id === ps.song_id);
+            const song = visibleSongs.find((s: Song) => s.id === ps.song_id);
             return song;
           })
           .filter(Boolean);
@@ -70,7 +97,6 @@ export const useSupabase = () => {
         };
       });
 
-      console.log('Final playlists with songs:', playlistsWithSongs);
       setPlaylists(playlistsWithSongs);
     } catch (err) {
       console.error('Error in fetchPlaylists:', err);
@@ -80,9 +106,36 @@ export const useSupabase = () => {
     }
   };
 
+  const hideItem = async (itemId: string, itemType: 'playlist' | 'song') => {
+    try {
+      if (!user) throw new Error('User must be authenticated to hide items');
+      if (isGuest) throw new Error('Guest users cannot hide items');
+
+      const { error } = await supabase
+        .from('hidden_items')
+        .insert([{
+          user_id: user.id,
+          item_id: itemId,
+          item_type: itemType
+        }]);
+
+      if (error) {
+        console.error('Error hiding item:', error);
+        throw error;
+      }
+
+      await fetchPlaylists();
+    } catch (err) {
+      console.error('Error in hideItem:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      throw err;
+    }
+  };
+
   const addSong = async (playlistId: string, newSong: Omit<Song, 'id' | 'user_id' | 'created_at'>) => {
     try {
       if (!user) throw new Error('User must be authenticated to add songs');
+      if (isGuest) throw new Error('Guest users cannot add songs');
       
       console.log('Adding new song:', newSong);
       
@@ -112,7 +165,6 @@ export const useSupabase = () => {
         .limit(1)
         .maybeSingle();
 
-      // If no songs exist yet, start at position 1, otherwise increment the highest position
       const nextPosition = (positionData?.position || 0) + 1;
       console.log('Next position:', nextPosition);
 
@@ -142,6 +194,7 @@ export const useSupabase = () => {
   const createPlaylist = async (newPlaylist: Omit<Playlist, 'id' | 'user_id' | 'created_at' | 'songs'>) => {
     try {
       if (!user) throw new Error('User must be authenticated to create playlists');
+      if (isGuest) throw new Error('Guest users cannot create playlists');
       
       console.log('Creating new playlist:', newPlaylist);
       
@@ -168,6 +221,93 @@ export const useSupabase = () => {
     }
   };
 
+  const deletePlaylist = async (playlistId: string) => {
+    try {
+      if (!user) throw new Error('User must be authenticated to delete playlists');
+      if (isGuest) throw new Error('Guest users cannot delete playlists');
+
+      // Delete the playlist (cascade will handle playlist_songs)
+      const { error } = await supabase
+        .from('playlists')
+        .delete()
+        .eq('id', playlistId)
+        .eq('user_id', user.id); // Ensure user owns the playlist
+
+      if (error) {
+        console.error('Error deleting playlist:', error);
+        throw error;
+      }
+
+      await fetchPlaylists();
+    } catch (err) {
+      console.error('Error in deletePlaylist:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      throw err;
+    }
+  };
+
+  const deleteSong = async (songId: string, playlistId: string) => {
+    try {
+      if (!user) throw new Error('User must be authenticated to delete songs');
+      if (isGuest) throw new Error('Guest users cannot delete songs');
+
+      // First remove the song from the playlist
+      const { error: relationError } = await supabase
+        .from('playlist_songs')
+        .delete()
+        .eq('song_id', songId)
+        .eq('playlist_id', playlistId);
+
+      if (relationError) {
+        console.error('Error removing song from playlist:', relationError);
+        throw relationError;
+      }
+
+      // Then delete the song if it belongs to the user
+      const { error: songError } = await supabase
+        .from('songs')
+        .delete()
+        .eq('id', songId)
+        .eq('user_id', user.id); // Ensure user owns the song
+
+      if (songError) {
+        console.error('Error deleting song:', songError);
+        throw songError;
+      }
+
+      await fetchPlaylists();
+    } catch (err) {
+      console.error('Error in deleteSong:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      throw err;
+    }
+  };
+
+  const removeSongFromPlaylist = async (songId: string, playlistId: string) => {
+    try {
+      if (!user) throw new Error('User must be authenticated to remove songs from playlists');
+      if (isGuest) throw new Error('Guest users cannot modify playlists');
+
+      // Remove the song from the playlist
+      const { error: relationError } = await supabase
+        .from('playlist_songs')
+        .delete()
+        .eq('song_id', songId)
+        .eq('playlist_id', playlistId);
+
+      if (relationError) {
+        console.error('Error removing song from playlist:', relationError);
+        throw relationError;
+      }
+
+      await fetchPlaylists();
+    } catch (err) {
+      console.error('Error in removeSongFromPlaylist:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      throw err;
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchPlaylists();
@@ -180,6 +320,11 @@ export const useSupabase = () => {
     error,
     addSong,
     createPlaylist,
-    refreshPlaylists: fetchPlaylists
+    deletePlaylist,
+    deleteSong,
+    removeSongFromPlaylist,
+    hideItem,
+    refreshPlaylists: fetchPlaylists,
+    isGuest
   };
 };

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Player from './components/Player';
-import Carousel from './components/Carousel';
+import PlaylistGrid from './components/PlaylistGrid';
 import CreatePlaylistModal from './components/CreatePlaylistModal';
 import AuthPage from './components/AuthPage';
 import { usePlayerStore } from './store';
@@ -10,20 +11,9 @@ import { useAuth } from './hooks/useAuth';
 import { Plus } from 'lucide-react';
 import { Playlist } from './types';
 
-const SUBJECTS = [
-  'Mathematics',
-  'Science',
-  'Language Arts',
-  'History',
-  'Geography',
-  'Art',
-  'Music',
-  'Physical Education'
-];
-
-function App() {
-  const { playlists, loading, error, addSong, createPlaylist } = useSupabase();
-  const { user, loading: authLoading } = useAuth();
+function MainApp() {
+  const { playlists, loading, error, addSong, createPlaylist, deletePlaylist, deleteSong, removeSongFromPlaylist, hideItem, isGuest } = useSupabase();
+  const { user } = useAuth();
   const setCurrentSong = usePlayerStore(state => state.setCurrentSong);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -33,17 +23,13 @@ function App() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-purple-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-400 border-t-transparent"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <AuthPage onAuthSuccess={() => {}} />;
-  }
+  const handleCreatePlaylistClick = () => {
+    if (isGuest) {
+      alert('Guest users cannot create playlists. Please sign up for a full account to access this feature.');
+      return;
+    }
+    setIsCreateModalOpen(true);
+  };
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-purple-950">
@@ -53,12 +39,21 @@ function App() {
         <header className="mb-6 md:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white">Welcome!</h1>
+              <h1 className="text-3xl md:text-4xl font-bold text-white">
+                Welcome{isGuest ? ' Guest' : user?.email ? `, ${user.email}` : ''}!
+              </h1>
               <p className="text-gray-300">Making learning fun through music</p>
+              {isGuest && (
+                <p className="text-yellow-400 text-sm mt-2">
+                  Note: Guest access is limited to viewing and playing system playlists.
+                  Sign up for a full account to create your own playlists and add songs!
+                </p>
+              )}
             </div>
             <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="sm:ml-auto flex items-center gap-2 bg-yellow-400 text-black px-4 py-2 rounded-lg hover:bg-yellow-500 transition-colors"
+              onClick={handleCreatePlaylistClick}
+              className="sm:ml-auto flex items-center gap-2 bg-yellow-400 text-black px-4 py-2 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isGuest}
             >
               <Plus size={20} />
               <span>Create Playlist</span>
@@ -67,33 +62,31 @@ function App() {
         </header>
 
         {loading ? (
-          <div className="text-white">Loading playlists...</div>
-        ) : error ? (
-          <div className="text-red-400">Error: {error}</div>
-        ) : (
-          <section className="mb-8 md:mb-12">
-            <h2 className="text-xl md:text-2xl font-semibold text-white mb-4 md:mb-6">Featured Playlists</h2>
-            <Carousel 
-              playlists={playlists}
-              onPlaylistClick={handlePlaylistClick}
-              onAddSong={addSong}
-            />
-          </section>
-        )}
-
-        <section>
-          <h2 className="text-xl md:text-2xl font-semibold text-white mb-4 md:mb-6">Popular Subjects</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-            {SUBJECTS.map((subject) => (
-              <div 
-                key={subject}
-                className="bg-purple-800 p-4 md:p-6 rounded-lg text-center cursor-pointer hover:bg-purple-700 transition-colors group"
-              >
-                <h3 className="text-sm md:text-base text-white font-medium group-hover:text-yellow-400 transition-colors">{subject}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="bg-purple-800/30 rounded-lg aspect-[4/5]"></div>
               </div>
             ))}
           </div>
-        </section>
+        ) : error ? (
+          <div className="bg-red-500/10 border border-red-500 text-red-400 p-4 rounded-lg">
+            Error: {error}
+          </div>
+        ) : (
+          <section>
+            <h2 className="text-xl md:text-2xl font-semibold text-white mb-4 md:mb-6">Featured Playlists</h2>
+            <PlaylistGrid 
+              playlists={playlists}
+              onPlaylistClick={handlePlaylistClick}
+              onAddSong={addSong}
+              onDeletePlaylist={deletePlaylist}
+              onDeleteSong={deleteSong}
+              onRemoveSong={removeSongFromPlaylist}
+              onHide={hideItem}
+            />
+          </section>
+        )}
       </main>
 
       <Player />
@@ -104,6 +97,19 @@ function App() {
         onCreatePlaylist={createPlaylist}
       />
     </div>
+  );
+}
+
+function App() {
+  const { user } = useAuth();
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/auth" element={user ? <Navigate to="/" /> : <AuthPage onAuthSuccess={() => {}} />} />
+        <Route path="/" element={user ? <MainApp /> : <Navigate to="/auth" />} />
+      </Routes>
+    </Router>
   );
 }
 

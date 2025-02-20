@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Music, X } from 'lucide-react';
+import { Music } from 'lucide-react';
 import { Playlist } from '../types';
+import Modal from './Modal';
 
 interface CreatePlaylistModalProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }: CreatePlayli
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    cover_url: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=800', // Default cover
+    cover_url: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=800',
     category: '',
     created_by: ''
   });
@@ -21,9 +22,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }: CreatePlayli
     e.preventDefault();
     onCreatePlaylist({
       ...formData,
-      // Use empty string if description is empty
       description: formData.description.trim() || 'No description provided',
-      // Use default cover if none provided
       cover_url: formData.cover_url.trim() || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=800'
     });
     setFormData({
@@ -36,24 +35,25 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }: CreatePlayli
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-purple-900 p-6 rounded-lg w-full max-w-md relative">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Create New Playlist"
+      icon={<Music className="text-yellow-400" size={24} />}
+      maxWidth="md"
+      footer={
         <button
-          onClick={onClose}
-          className="absolute right-4 top-4 text-gray-400 hover:text-white"
+          type="submit"
+          form="create-playlist-form"
+          className="w-full bg-yellow-400 text-black font-semibold py-2 rounded-md hover:bg-yellow-500 transition-colors"
         >
-          <X size={24} />
+          Create Playlist
         </button>
-        
-        <div className="flex items-center gap-2 mb-6">
-          <Music className="text-yellow-400" size={24} />
-          <h2 className="text-2xl font-bold text-white">Create New Playlist</h2>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+      }
+    >
+      <div className="p-6">
+        <form id="create-playlist-form" onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
               Name <span className="text-red-400">*</span>
@@ -129,16 +129,9 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }: CreatePlayli
               placeholder="Enter creator name"
             />
           </div>
-
-          <button
-            type="submit"
-            className="w-full bg-yellow-400 text-black font-semibold py-2 rounded-md hover:bg-yellow-500 transition-colors mt-6"
-          >
-            Create Playlist
-          </button>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 

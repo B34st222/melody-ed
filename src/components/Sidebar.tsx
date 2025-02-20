@@ -3,6 +3,7 @@ import { Home, Music, BookOpen, Users, Star, Library, Menu, X, LogOut } from 'lu
 import AllSongsModal from './AllSongsModal';
 import { Playlist } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
   playlists: Playlist[];
@@ -11,13 +12,15 @@ interface SidebarProps {
 const Sidebar = ({ playlists }: SidebarProps) => {
   const [isSongsModalOpen, setIsSongsModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { signOut } = useAuth();
+  const { signOut, isGuest } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSignOut = async () => {
+  const handleAuthAction = async () => {
     try {
       await signOut();
+      navigate('/auth');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Error with auth action:', error);
     }
   };
 
@@ -72,17 +75,24 @@ const Sidebar = ({ playlists }: SidebarProps) => {
             <a href="#" className="flex items-center gap-3 text-lg hover:text-yellow-400 transition-colors">
               <Star size={20} /> Favorites
             </a>
+            <button
+              onClick={handleAuthAction}
+              className={`flex items-center gap-3 text-lg w-full text-left transition-colors ${
+                isGuest 
+                  ? 'text-yellow-400 hover:text-yellow-500' 
+                  : 'text-gray-300 hover:text-white'
+              }`}
+            >
+              <LogOut size={20} />
+              {isGuest ? 'Sign In' : 'Sign Out'}
+            </button>
           </nav>
 
           {/* Footer */}
-          <div className="p-6 mt-auto flex-shrink-0 border-t border-purple-800">
-            <button
-              onClick={handleSignOut}
-              className="flex items-center gap-3 text-lg text-gray-300 hover:text-white transition-colors w-full"
-            >
-              <LogOut size={20} />
-              Sign Out
-            </button>
+          <div className="p-6 mt-auto border-t border-purple-800">
+            <p className="text-sm text-gray-400">
+              © 2025 MelodyEd
+            </p>
           </div>
         </div>
       </div>
